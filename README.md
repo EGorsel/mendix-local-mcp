@@ -1,57 +1,70 @@
 # Mendix Context Bridge (Local MCP Server)
 
-Dit project is een **Mendix Context Bridge**. Het stelt AI-agents (zoals Antigravity) in staat om direct de structuur en logica van jouw lokale Mendix-project te lezen en te begrijpen via het Model Context Protocol (MCP). Door rechtstreeks verbinding te maken met het lokale `.mpr` bestand, heeft de AI geen cloud-toegang nodig en werkt het razendsnel.
+This project acts as a **Local Model Context Protocol (MCP) Server** for Mendix applications. It bridges the gap between AI Agents (like Antigravity or standard MCP clients) and your local Mendix development environment.
 
-## Installatie
+By reading the local SQLite database (`.mpr`) directly, it allows AI assistants to understand your project structure, domain model, and microflows **without cloud access** and with **zero latency**.
 
-Volg deze stappen om de server lokaal te installeren:
+## 🚀 Key Features
 
-1.  **Dependencies installeren**:
+*   **Privacy First**: Runs entirely locally. Your IP is not uploaded to any third-party parser service.
+*   **Mendix 10 Compatible**: Fully supports modern Mendix projects using Git storage (split generic/module blobs).
+*   **Live Inspection**:
+    *   `list_local_modules`: Discovers all modules in your app.
+    *   `get_domain_model`: Extracts entities and associations for a specific module.
+    *   `inspect_database_schema`: (Debug) Allows the AI to inspect the internal `.mpr` SQLite structure.
+
+## 🛠️ Installation
+
+1.  **Clone this repository** (preferably into a subfolder of your Mendix project, e.g., `tooling/mendix-local-mcp`):
+    ```bash
+    git clone https://github.com/EGorsel/mendix-local-mcp.git
+    cd mendix-local-mcp
+    ```
+
+2.  **Install Dependencies**:
     ```bash
     npm install
     ```
-2.  **Project bouwen**:
+
+3.  **Build the Server**:
     ```bash
     npm run build
     ```
 
-## Configuratie in Antigravity
+## ⚙️ Configuration
 
-Om Antigravity gebruik te laten maken van deze server, moet je het pad naar het gebouwde script toevoegen aan je `mcp_config.json`.
+To use this server with an MCP Client (like Antigravity or Claude Desktop), add it to your `mcp_config.json`.
 
-Zorg dat de configuratie er als volgt uitziet (pas het pad aan naar jouw locatie):
-
+**Recommended Configuration**:
 ```json
 {
-  "mcpServers": {
-    "mendix-local": {
-      "command": "node",
-      "args": [
-        "C:/Volledig/Pad/Naar/Deze/Map/dist/server.js"
-      ],
-      "disabled": false
-    }
+  "mendix-local": {
+    "command": "node",
+    "args": [
+      "${workspaceFolder}/tooling/mendix-local-mcp/dist/server.js"
+    ],
+    "disabled": false
   }
 }
 ```
+*Note: Adjust the path to where you cloned the repo. `${workspaceFolder}` is supported by some clients; otherwise use an absolute path.*
 
-## Hoe te gebruiken
+## 💡 Usage
 
-1.  **Open je Mendix projectmap** in Antigravity/VS Code.
-2.  De AI assistent herkent automatisch het `.mpr` bestand in jouw map.
-3.  Je kunt nu direct vragen stellen over je applicatie.
+Once configured, simply open your Mendix project folder in your AI editor. The server automatically detects the `.mpr` file in the root (or subdirectories).
 
-**Voorbeelden van vragen:**
-*   *"Wat doet de microflow ACT_CalculateOrderTotal?"*
-*   *"Welke attributen heeft de entiteit Customer?"*
-*   *"Geef me een overzicht van alle modules in dit project."*
+**Example Prompts:**
+*   *"Analyze the domain model of the Administration module."*
+*   *"What modules are present in this project?"*
+*   *"Explain the purpose of the 'Customer' entity."*
 
-## Technische Details
+## ⚠️ Important Notes
 
-De server maakt gebruik van de **better-sqlite3** bibliotheek om verbinding te maken met de Mendix database. Belangrijk om te weten:
-*   De verbinding wordt gemaakt in **Read-Only** modus.
-*   Dit betekent dat je de server veilig kunt gebruiken **terwijl Mendix Studio Pro geopend is**. Er ontstaan geen file-locks of conflicten.
+*   **Save Your Work**: The server reads the physical `.mpr` file on disk. Changes made in Mendix Studio Pro are only visible to the AI **after you save (Ctrl+S)**.
+*   **Read-Only**: The server connects in read-only mode, so it is safe to use while Studio Pro is open.
 
-## Beperkingen
+## 🏗️ Architecture
 
-*   **Opslaan vereist**: Omdat de server het fysieke `.mpr` bestand op je schijf leest, kan de AI wijzigingen die je net hebt gemaakt pas zien **nadat je het project hebt opgeslagen** in Mendix Studio Pro (Ctrl+S).
+*   **Language**: TypeScript / Node.js
+*   **Database**: `better-sqlite3` for direct SQLite access.
+*   **Logic**: Custom `MprReader` that reverse-engineers Mendix internal storage (handling both legacy lookups and modern blob-based storage with endian-swapped GUIDs).
