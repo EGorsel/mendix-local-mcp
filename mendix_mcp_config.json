@@ -1,0 +1,19 @@
+{
+    "mcpServers": {
+        "mendix-local": {
+            "command": "node",
+            "args": [
+                "c:/Mendix apps/Mendix_AntiGravity/mendix-local-mcp/dist/server.js"
+            ],
+            "env": {
+                "PATH": "c:/windows/system32;c:/windows;c:/program files/nodejs"
+            },
+            "disabled": false,
+            "autoAllow": [
+                "list_local_modules",
+                "inspect_local_microflow",
+                "get_domain_model"
+            ]
+        }
+    }
+}
