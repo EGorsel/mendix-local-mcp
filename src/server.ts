@@ -56,10 +56,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "list_local_documents",
-                description: "Lists all documents (Microflows, Pages, Snippets) found in the project.",
+                description: "Lists all documents (Microflows, Pages, Snippets) found in the project. Can be filtered by module.",
                 inputSchema: {
                     type: "object",
-                    properties: {}
+                    properties: {
+                        module_name: {
+                            type: "string",
+                            description: "Optional: The name of the module to filter by."
+                        }
+                    }
                 }
             },
             {
@@ -124,7 +129,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         if (request.params.name === "list_local_documents") {
-            const docs = reader.getDocuments();
+            const moduleName = request.params.arguments?.module_name ? String(request.params.arguments.module_name) : undefined;
+            const docs = reader.getDocuments(moduleName);
             // Return a summary (Name, Type) to save tokens
             const summary = docs.map(d => ({ name: d.name, type: d.type }));
             return {

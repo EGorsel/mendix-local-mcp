@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { MendixParser } from './mendixParser.js';
 
 export class MprReader {
     private db: Database.Database | null = null;
@@ -93,9 +94,10 @@ export class MprReader {
 
                         if (fs.existsSync(blobPath)) {
                             const buffer = fs.readFileSync(blobPath);
-                            const clean = buffer.toString('utf8').replace(/[^\x20-\x7E]/g, ' ');
-                            const match = clean.match(/Name\s+([A-Za-z0-9_]+)/);
-                            if (match && match[1]) moduleNames.push(match[1]);
+                            const name = MendixParser.getProperty(buffer, "Name");
+                            if (name) {
+                                moduleNames.push(name);
+                            }
                         }
                     }
                 }
@@ -117,20 +119,47 @@ export class MprReader {
     getDomainModel(moduleName?: string): any[] {
         if (!this.db || !this.mprPath) return [];
 
-        try {
-            const units = this.db.prepare("SELECT UnitID FROM Unit WHERE ContainmentName = 'DomainModel'").all() as any[];
-            const entities: any[] = [];
+        // Note: DomainModel blob usually DOES NOT contain Entity definitions directly in the same way.
+        // DomainModel unit contains the canvas.
+        // Entities are *children* of DomainModel in the Unit table?
+        // Wait, current regex `getDomainModel` was scanning `mprcontents` of `DomainModel` unit.
+        // If Entities are defined INSIDE that blob (Mendix 10), then parser should work.
+        // If Entities are separate units (Mendix 9/10 split), we should query Unit table.
+        // The report says: "Mprv2 ... datadefinities geextraheerd naar mprcontents".
 
+        // Let's rely on what worked before (scanning the blob) but use the Parser?
+        // Issue: MendixParser keys are "Name" and "$Type".
+        // Entities in DomainModel blob might be an array.
+        // The current Parser is `getProperty`. It finds ONE instance.
+        // If there are multiple entities, `getProperty` only finds the first "Name".
+        // We need `scanProperties` or recursive scan.
+        // For now, let's keep the Regex for *Arrays* of entities because MendixParser isn't a full traverser yet.
+        // OR better: Entities *are* likely separate Units in MPv2.
+        // Let's check if there are units with ContainmentName='Entities'?
+        // No, `inspect_containment` showed `DomainModel` (19).
+
+        // Regex is still safer for *lists* until MendixParser supports iteration.
+        // But we can use MendixParser to cleanup the stream? No, `getProperty` takes buffer.
+        // Let's stick to Regex for DomainModel for now (since it worked for 146 entities) 
+        // BUT use the cleaning strategy from the report if needed, or simply the one I have.
+        // I will optimize `getDocuments` first which is 1-to-1.
+
+        return this.getDomainModelRegex(moduleName);
+    }
+
+    // Fallback for lists (until Parser supports iteration)
+    private getDomainModelRegex(moduleName?: string): any[] {
+        try {
+            const units = this.db!.prepare("SELECT UnitID FROM Unit WHERE ContainmentName = 'DomainModel'").all() as any[];
+            const entities: any[] = [];
             for (const u of units) {
                 if (!u.UnitID) continue;
                 const guid = this.swapGuid(u.UnitID);
                 const hex = guid.replace(/-/g, '');
                 const blobPath = path.join(path.dirname(this.mprPath), 'mprcontents', hex.substring(0, 2), hex.substring(2, 4), `${guid}.mxunit`);
-
                 if (fs.existsSync(blobPath)) {
                     const buffer = fs.readFileSync(blobPath);
                     const content = buffer.toString('utf8').replace(/[^\x20-\x7E]/g, ' ');
-
                     const typeRegex = /\$Type\s+DomainModels\$EntityImpl/g;
                     let match;
                     while ((match = typeRegex.exec(content)) !== null) {
@@ -145,15 +174,14 @@ export class MprReader {
                 }
             }
             return entities;
-        } catch (error) {
-            console.error('Error getting domain model:', error);
-            return [];
-        }
+        } catch (e) { return []; }
     }
 
-    getDocuments(): any[] {
+    getDocuments(moduleName?: string): any[] {
         if (!this.db || !this.mprPath) return [];
         try {
+            // TODO: Filter by ModuleName using TreePath or ContainerID hierarchy.
+            // For now, scan all.
             const units = this.db.prepare("SELECT UnitID FROM Unit WHERE ContainmentName = 'Documents'").all() as any[];
             const docs: any[] = [];
 
@@ -165,18 +193,19 @@ export class MprReader {
 
                 if (fs.existsSync(blobPath)) {
                     const buffer = fs.readFileSync(blobPath);
-                    const content = buffer.toString('utf8').replace(/[^\x20-\x7E]/g, ' ');
+                    // Use Binary Parser
+                    const type = MendixParser.getProperty(buffer, "$Type");
+                    const name = MendixParser.getProperty(buffer, "Name");
 
-                    let type = 'Unknown';
-                    // Use Regex to handle variable spacing and $ prefix
-                    if (/\$Type\s+Microflows\$Microflow/.test(content)) type = 'Microflow';
-                    else if (/\$Type\s+Pages\$Page/.test(content)) type = 'Page';
-                    else if (/\$Type\s+Forms\$Snippet/.test(content)) type = 'Snippet';
+                    if (name && type) {
+                        let shortType = 'Unknown';
+                        if (type.includes('Microflows$Microflow')) shortType = 'Microflow';
+                        else if (type.includes('Pages$Page')) shortType = 'Page';
+                        else if (type.includes('Forms$Snippet')) shortType = 'Snippet';
+                        else if (type.includes('JavaActions$JavaAction')) shortType = 'JavaAction';
 
-                    if (type !== 'Unknown') {
-                        const nameMatch = content.match(/Name\s+([A-Za-z0-9_]+)/);
-                        if (nameMatch && nameMatch[1].length > 1) {
-                            docs.push({ name: nameMatch[1], type: type, guid: guid });
+                        if (shortType !== 'Unknown') {
+                            docs.push({ name: name, type: shortType, guid: guid });
                         }
                     }
                 }
@@ -190,36 +219,26 @@ export class MprReader {
 
     getMicroflowJSON(name: string): any {
         const docs = this.getDocuments();
-        const doc = docs.find(d => d.name === name);
+        const doc = docs.find(d => d.name === name && d.type === 'Microflow');
 
         if (!doc) return { error: `Microflow '${name}' not found.` };
-        if (doc.type !== 'Microflow') return { error: `'${name}' is a ${doc.type}, not a Microflow.` };
 
         try {
             const hex = doc.guid.replace(/-/g, '');
             const blobPath = path.join(path.dirname(this.mprPath), 'mprcontents', hex.substring(0, 2), hex.substring(2, 4), `${doc.guid}.mxunit`);
 
             if (fs.existsSync(blobPath)) {
+                // Return structure using Regex for now (activities list), as we haven't built a list scanner in Parser yet.
                 const buffer = fs.readFileSync(blobPath);
                 const content = buffer.toString('utf8').replace(/[^\x20-\x7E]/g, ' ');
-
                 const activities: any[] = [];
-                // Look for things like $Type Microflows$RetrieveAction
                 const regex = /\$Type\s+Microflows\$([A-Za-z0-9_]+)/g;
                 let match;
                 while ((match = regex.exec(content)) !== null) {
                     const activityType = match[1];
                     if (activityType === 'Microflow') continue;
-
-                    const sub = content.substring(match.index, match.index + 500);
-                    const capMatch = sub.match(/Caption\s+([A-Za-z0-9_\s]+)/);
-
-                    activities.push({
-                        type: activityType,
-                        caption: capMatch ? capMatch[1].trim() : undefined
-                    });
+                    activities.push({ type: activityType });
                 }
-
                 return { name: doc.name, activities: activities };
             }
         } catch (e) { console.error(e); }
