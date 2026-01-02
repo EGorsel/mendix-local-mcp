@@ -40,12 +40,23 @@ const server = new Server(
 /**
  * Handler for ListTools
  */
+/**
+ * Handler for ListTools
+ */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
         tools: [
             {
                 name: "list_local_modules",
-                description: "Geeft een overzicht van alle modules in het geopende .mpr bestand.",
+                description: "Lists all modules found in the opened .mpr file.",
+                inputSchema: {
+                    type: "object",
+                    properties: {}
+                }
+            },
+            {
+                name: "list_local_documents",
+                description: "Lists all documents (Microflows, Pages, Snippets) found in the project.",
                 inputSchema: {
                     type: "object",
                     properties: {}
@@ -53,13 +64,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "inspect_local_microflow",
-                description: "Zoekt een microflow op naam en geeft de logische stappen terug.",
+                description: "Retrieves the simplified logical steps of a specific Microflow by name.",
                 inputSchema: {
                     type: "object",
                     properties: {
                         name: {
                             type: "string",
-                            description: "Naam van de microflow"
+                            description: "Name of the microflow to inspect."
                         }
                     },
                     required: ["name"]
@@ -67,27 +78,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "get_domain_model",
-                description: "Geeft een overzicht van alle entiteiten en types in een specifieke module.",
+                description: "Retrieves all entities and types from the Domain Model (optionally filtered by module).",
                 inputSchema: {
                     type: "object",
                     properties: {
                         module_name: {
                             type: "string",
-                            description: "De naam van de module waarvan je het domeinmodel wilt zien."
+                            description: "Optional module name filter."
                         }
-                    },
-                    required: ["module_name"]
+                    }
                 }
             },
             {
                 name: "inspect_database_schema",
-                description: "Geeft de kolomstructuur van een tabel in de lokale database terug. Handig om te begrijpen hoe Mendix data opslaat.",
+                description: "Returns the column structure of a table in the local SQLite database. Useful for debugging Mendix internal storage.",
                 inputSchema: {
                     type: "object",
                     properties: {
                         table_name: {
                             type: "string",
-                            description: "Naam van de tabel (standaard: Unit)",
+                            description: "Table name (default: Unit)",
                             default: "Unit"
                         }
                     }
@@ -102,10 +112,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
  */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
+        if (!reader) {
+            throw new Error("Server not initialized correctly.");
+        }
+
         if (request.params.name === "list_local_modules") {
             const modules = reader.getModules();
             return {
                 content: [{ type: "text", text: JSON.stringify(modules, null, 2) }]
+            };
+        }
+
+        if (request.params.name === "list_local_documents") {
+            const docs = reader.getDocuments();
+            // Return a summary (Name, Type) to save tokens
+            const summary = docs.map(d => ({ name: d.name, type: d.type }));
+            return {
+                content: [{ type: "text", text: JSON.stringify(summary, null, 2) }]
             };
         }
 
@@ -118,8 +141,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         if (request.params.name === "get_domain_model") {
-            const moduleName = String(request.params.arguments?.module_name);
+            const moduleName = request.params.arguments?.module_name ? String(request.params.arguments.module_name) : undefined;
             const data = reader.getDomainModel(moduleName);
+            return {
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+            };
+        }
+
+        if (request.params.name === "inspect_database_schema") {
+            const tableName = request.params.arguments?.table_name ? String(request.params.arguments.table_name) : 'Unit';
+            const data = reader.getSchema(tableName);
             return {
                 content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
             };

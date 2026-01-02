@@ -7,9 +7,12 @@ By reading the local SQLite database (`.mpr`) directly, it allows AI assistants 
 ## 🚀 Key Features
 
 *   **Privacy First**: Runs entirely locally. Your IP is not uploaded to any third-party parser service.
-*   **Mendix 10 Compatible**: Fully supports modern Mendix projects using Git storage (split generic/module blobs).
+*   **Mendix 10 Compatible**: Fully supports modern Mendix projects using Git storage (split generic/module blobs) and binary blob parsing.
+*   **Smart Caching**: Caches structure to ensure instant responses for subsequent queries.
 *   **Live Inspection**:
     *   `list_local_modules`: Discovers all modules in your app.
+    *   `list_local_documents`: Lists all Microflows, Pages, and Snippets.
+    *   `inspect_local_microflow`: Extracts the logical structure (activities, decisions, loops) of a Microflow.
     *   `get_domain_model`: Extracts entities and associations for a specific module.
     *   `inspect_database_schema`: (Debug) Allows the AI to inspect the internal `.mpr` SQLite structure.
 
@@ -55,8 +58,8 @@ Once configured, simply open your Mendix project folder in your AI editor. The s
 
 **Example Prompts:**
 *   *"Analyze the domain model of the Administration module."*
-*   *"What modules are present in this project?"*
-*   *"Explain the purpose of the 'Customer' entity."*
+*   *"What does the Microflow 'ACT_SaveCustomer' do?"*
+*   *"List all microflows in the project."*
 
 ## ⚠️ Important Notes
 
@@ -67,4 +70,7 @@ Once configured, simply open your Mendix project folder in your AI editor. The s
 
 *   **Language**: TypeScript / Node.js
 *   **Database**: `better-sqlite3` for direct SQLite access.
-*   **Logic**: Custom `MprReader` that reverse-engineers Mendix internal storage (handling both legacy lookups and modern blob-based storage with endian-swapped GUIDs).
+*   **Logic**: Custom `MprReader` that reverse-engineers Mendix internal storage:
+    *   Handles Endian-swapped GUIDs for file lookups.
+    *   Parses binary `.mxunit` blobs using Regex-based extraction (stripping non-printable characters).
+    *   Identifies Microflow Activities and Domain Model Entities dynamically.
