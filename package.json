@@ -22,6 +22,7 @@
     "@modelcontextprotocol/sdk": "^1.25.1",
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
-    "mendixmodelsdk": "^4.107.0"
+    "mendixmodelsdk": "^4.107.0",
+    "mendixplatformsdk": "^5.2.0"
   }
 }

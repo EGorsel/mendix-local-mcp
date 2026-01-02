@@ -68,6 +68,28 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 }
             },
             {
+                name: "get_module_entities_sdk",
+                description: "Retrieves entities from a module using the Official Mendix SDK (Requires Internet & PAT). Safer than local parsing.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        module_name: {
+                            type: "string",
+                            description: "The name of the module to inspect."
+                        },
+                        project_id: {
+                            type: "string",
+                            description: "The Mendix Project ID (App ID)."
+                        },
+                        branch: {
+                            type: "string",
+                            description: "The branch name (default: main)."
+                        }
+                    },
+                    required: ["module_name", "project_id"]
+                }
+            },
+            {
                 name: "inspect_local_microflow",
                 description: "Retrieves the simplified logical steps of a specific Microflow by name.",
                 inputSchema: {
@@ -136,6 +158,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             return {
                 content: [{ type: "text", text: JSON.stringify(summary, null, 2) }]
             };
+        }
+
+        if (request.params.name === "get_module_entities_sdk") {
+            const moduleName = String(request.params.arguments?.module_name);
+            const projectId = String(request.params.arguments?.project_id);
+            const branch = request.params.arguments?.branch ? String(request.params.arguments.branch) : "main";
+
+            if (!process.env.MENDIX_TOKEN) {
+                return {
+                    content: [{ type: "text", text: "Error: MENDIX_TOKEN environment variable is not set. Cannot use SDK tools." }]
+                };
+            }
+
+            try {
+                // 1. Fetch App & Working Copy
+                const app = client.getApp(projectId);
+                const workingCopy = await app.createTemporaryWorkingCopy(branch);
+                const model = await workingCopy.openModel();
+
+                // 2. Find Module
+                const domainModelInterface = model.allDomainModels().find(dm => dm.containerAsModule.name === moduleName);
+
+                if (!domainModelInterface) {
+                    return { content: [{ type: "text", text: `Module '${moduleName}' not found in project.` }] };
+                }
+
+                // 3. Load & Map
+                const domainModel = await domainModelInterface.load();
+                const entities = domainModel.entities.map(mapEntity);
+
+                return {
+                    content: [{ type: "text", text: JSON.stringify(entities, null, 2) }]
+                };
+            } catch (error: any) {
+                return {
+                    content: [{ type: "text", text: `SDK Error: ${error.message}` }]
+                };
+            }
         }
 
         if (request.params.name === "inspect_local_microflow") {
