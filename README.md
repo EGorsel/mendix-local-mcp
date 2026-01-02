@@ -1,4 +1,4 @@
-# Mendix Local MCP Server
+# Mendix MCP Server
 
 [![Mendix Support](https://img.shields.io/badge/Mendix-10.24%2B-blue.svg)](https://docs.mendix.com/)
 ![TypeScript](https://img.shields.io/badge/language-TypeScript-green.svg)
