@@ -1,6 +1,6 @@
 # Mendix Local MCP Server
 
-[![Mendix Support](https://img.shields.io/badge/Mendix-7%20--%2011-blue.svg)](https://docs.mendix.com/)
+[![Mendix Support](https://img.shields.io/badge/Mendix-10.24%2B-blue.svg)](https://docs.mendix.com/)
 ![TypeScript](https://img.shields.io/badge/language-TypeScript-3178C6.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![MCP](https://img.shields.io/badge/protocol-MCP-green.svg)
