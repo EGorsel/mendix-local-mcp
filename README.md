@@ -1,7 +1,8 @@
 # Mendix Local MCP Server
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+[![Mendix Support](https://img.shields.io/badge/Mendix-7%20--%2011-blue.svg)](https://docs.mendix.com/)
 ![TypeScript](https://img.shields.io/badge/language-TypeScript-3178C6.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![MCP](https://img.shields.io/badge/protocol-MCP-green.svg)
 
 **A powerful bridge between Mendix Applications and AI Agents.**
